@@ -1,18 +1,52 @@
-"""
-"""
+#! /usr/bin/env python
+#
+# Provide an implementation of Linkable Spontaneus Anonymous Group Signature
+# over elliptic curve cryptography. 
+#
+# Implementation of cryptographic scheme from: https://eprint.iacr.org/2004/027.pdf
+# 
+#
+# Written in 2017 by Fernanddo Lobato Meeser and placed in the public domain.
+
 import hashlib
 
-from ecdsa import keys
 from ecdsa.util import randrange
 from ecdsa.curves import SECP256k1
 
 def ring_signature(siging_key, key_idx, M, y, G=SECP256k1.generator):
-    """
+    """ 
+        Generates a ring signature for a message given a specific set of
+        public keys and a signing key belonging to one of the public keys
+        in the set.
+
+        PARAMS
+        ------
+
+            signing_key: (int) The with which the message is to be anonymously signed.
+
+            key_idx: (int) The index of the public key corresponding to the signature
+                private key over the list of public keys that compromise the signature.
+
+            M: (str) Message to be signed.
+
+            y: (list) The list of public keys which over which the anonymous signature
+                will be compose.
+
+            G = (ecdsa.ellipticcurve.Point) Generator point for the elliptic curve.
+        
+        RETURNS
+        -------
+
+            Signature (c_0, s, Y) :
+                c_0: Initial value to reconstruct signature.
+                s = vector of randomly generated values with encrypted secret to 
+                    reconstruct signature.
+                Y = Link for current signer.
+
     """
     n = len(y)
     c = [0] * n
     s = [0] * n
-    next_idx = lambda i: (i + 1) % n
 
     # STEP 1
     L = to_str(y)
@@ -21,7 +55,7 @@ def ring_signature(siging_key, key_idx, M, y, G=SECP256k1.generator):
 
     # STEP 2
     u = randrange(SECP256k1.order)
-    c[next_idx(key_idx)] = H1([L, Y, M, G * u, H * u])
+    c[(key_idx + 1) % n] = H1([L, Y, M, G * u, H * u])
 
     # STEP 3
     for i in [ i for i in range(key_idx + 1, n) ] + [i for i in range(key_idx)]:
@@ -31,7 +65,7 @@ def ring_signature(siging_key, key_idx, M, y, G=SECP256k1.generator):
         z_1 = (G * s[i]) + (y[i] * c[i])
         z_2 = (H * s[i]) + (Y * c[i])
 
-        c[ next_idx(i) ] = H1([L, Y, M, z_1, z_2])
+        c[(i + 1) % n] = H1([L, Y, M, z_1, z_2])
 
     # STEP 4
     s[key_idx] = (u - siging_key * c[key_idx]) % SECP256k1.order
@@ -46,11 +80,18 @@ def verify_ring_signature(message, y, c_0, s, Y, G=SECP256k1.generator):
 
         PARAMS
         ------
-            message: (str) message being verified.
-
+            message: (str) message whos' signature is being verified.
+            
             y: (list) set of public keys with which the message was signed.
 
-            c_0: (int) initial value to reconstruct the ring.
+            Signature:
+                c_0: (int) initial value to reconstruct the ring.
+
+                s: (list) vector of secrets used to create ring.
+
+                Y = (int) Link of unique signer.
+
+            G = (ecdsa.ellipticcurve.Point) Generator point for the elliptic curve.
 
 
         RETURNS
@@ -71,25 +112,47 @@ def verify_ring_signature(message, y, c_0, s, Y, G=SECP256k1.generator):
         if i < n - 1:
             c[i + 1] = H1([L, Y, message, z_1, z_2])
         else:
+            # Did we correctly reconstruct ring?
             return c_0 == H1([L, Y, message, z_1, z_2])
 
     return False
 
 
 def map_to_curve(x):
-    """
+    """ Maps an integer to an elliptic curve.
     """
     return SECP256k1.generator * x
 
 
-def H1(msg, base=16, hash_func=hashlib.sha256):
+def H1(msg, hash_func=hashlib.sha256):
+    """ Return an integer representation of the hash of a message. The 
+        message can be a list of messages that are concatenated with the
+        to_str() function.
+
+        PARAMS
+        ------
+            msg: (str or list) message(s) to be hashed.
+
+            hash_func: (function) a hash function which can recieve an input
+                string and return a hexadecimal digest.
+
+        RETURNS
+        -------
+            Integer representation of hexadecimal digest from hash function.
     """
-    """
-    return int(hash_func(to_str(msg).encode('utf-8')).hexdigest(), base)
+    return int(hash_func(to_str(msg).encode('utf-8')).hexdigest(), 16)
 
 
 def H2(msg):
-    """
+    """ Hashes a message into an elliptic curve point.
+    
+        PARAMS
+        ------
+            msg: (str or list) message(s) to be hashed.
+
+        RETURNS
+        -------
+            ecdsa.ellipticcurve.Point to curve.  
     """
     return map_to_curve(H1(msg))
 
@@ -102,7 +165,7 @@ def to_str(params):
 
 
 def main(): 
-    number_participants = 5
+    number_participants = 10
 
     x = [ randrange(SECP256k1.order) for i in range(number_participants)]
     y = list(map(lambda xi: SECP256k1.generator * xi, x))
