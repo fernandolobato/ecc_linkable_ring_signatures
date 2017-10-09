@@ -9,11 +9,14 @@
 # Written in 2017 by Fernanddo Lobato Meeser and placed in the public domain.
 
 import hashlib
+import sha3
+import functools
+import ecdsa
 
 from ecdsa.util import randrange
 from ecdsa.curves import SECP256k1
 
-def ring_signature(siging_key, key_idx, M, y, G=SECP256k1.generator):
+def ring_signature(siging_key, key_idx, M, y, G=SECP256k1.generator, hash_func=sha3.keccak_256):
     """ 
         Generates a ring signature for a message given a specific set of
         public keys and a signing key belonging to one of the public keys
@@ -47,15 +50,14 @@ def ring_signature(siging_key, key_idx, M, y, G=SECP256k1.generator):
     n = len(y)
     c = [0] * n
     s = [0] * n
-
+    
     # STEP 1
-    L = to_str(y)
-    H = H2(L)
+    H = H2(y, hash_func=hash_func)
     Y =  H * siging_key
 
     # STEP 2
     u = randrange(SECP256k1.order)
-    c[(key_idx + 1) % n] = H1([L, Y, M, G * u, H * u])
+    c[(key_idx + 1) % n] = H1([y, Y, M, G * u, H * u])
 
     # STEP 3
     for i in [ i for i in range(key_idx + 1, n) ] + [i for i in range(key_idx)]:
@@ -65,15 +67,15 @@ def ring_signature(siging_key, key_idx, M, y, G=SECP256k1.generator):
         z_1 = (G * s[i]) + (y[i] * c[i])
         z_2 = (H * s[i]) + (Y * c[i])
 
-        c[(i + 1) % n] = H1([L, Y, M, z_1, z_2])
+        c[(i + 1) % n] = H1([y, Y, M, z_1, z_2], hash_func=hash_func)
 
     # STEP 4
     s[key_idx] = (u - siging_key * c[key_idx]) % SECP256k1.order
-
+    print(c)
     return (c[0], s, Y)
 
 
-def verify_ring_signature(message, y, c_0, s, Y, G=SECP256k1.generator):
+def verify_ring_signature(message, y, c_0, s, Y, G=SECP256k1.generator, hash_func=sha3.keccak_256):
     """
         Verifies if a valid signature was made by a key inside a set of keys.
     
@@ -102,18 +104,17 @@ def verify_ring_signature(message, y, c_0, s, Y, G=SECP256k1.generator):
     n = len(y)
     c = [c_0] + [0] * (n - 1)
 
-    L = to_str(y)
-    H = H2(L)
+    H = H2(y, hash_func=hash_func)
 
     for i in range(n):
         z_1 = (G * s[i]) + (y[i] * c[i])
         z_2 = (H * s[i]) + (Y * c[i])
 
         if i < n - 1:
-            c[i + 1] = H1([L, Y, message, z_1, z_2])
+            c[i + 1] = H1([y, Y, message, z_1, z_2], hash_func=hash_func)
         else:
             # Did we correctly reconstruct ring?
-            return c_0 == H1([L, Y, message, z_1, z_2])
+            return c_0 == H1([y, Y, message, z_1, z_2], hash_func=hash_func)
 
     return False
 
@@ -124,10 +125,10 @@ def map_to_curve(x):
     return SECP256k1.generator * x
 
 
-def H1(msg, hash_func=hashlib.sha256):
+def H1(msg, hash_func=sha3.keccak_256):
     """ Return an integer representation of the hash of a message. The 
         message can be a list of messages that are concatenated with the
-        to_str() function.
+        concat() function.
 
         PARAMS
         ------
@@ -140,10 +141,10 @@ def H1(msg, hash_func=hashlib.sha256):
         -------
             Integer representation of hexadecimal digest from hash function.
     """
-    return int(hash_func(to_str(msg).encode('utf-8')).hexdigest(), 16)
+    return int('0x'+ hash_func(concat(msg)).hexdigest(), 16) #% SECP256k1.order
 
 
-def H2(msg):
+def H2(msg, hash_func=sha3.keccak_256):
     """ Hashes a message into an elliptic curve point.
     
         PARAMS
@@ -154,14 +155,28 @@ def H2(msg):
         -------
             ecdsa.ellipticcurve.Point to curve.  
     """
-    return map_to_curve(H1(msg))
+    return map_to_curve(H1(msg, hash_func=hash_func))
 
 
-def to_str(params):
-    """ Concatenate a list of parameters of type string, integer and ecdsa.ellipticcurve.Point
-        into a string without spaces. 
+def concat(params):
+    """ 
     """
-    return ''.join(list(map(lambda p: str(p) if type(p) in [int, str] else str(p.x()) + str(p.y()), params)))
+    n = len(params)
+    bytes_value = [0] * n
+
+    for i in range(n):
+        
+        if type(params[i]) is int:
+            bytes_value[i] = params[i].to_bytes(32, 'big')
+        if type(params[i]) is list:
+            bytes_value[i] = concat(params[i])
+        if type(params[i]) is ecdsa.ellipticcurve.Point:
+            bytes_value[i] = params[i].x().to_bytes(32, 'big') + params[i].y().to_bytes(32, 'big')
+        if type(params[i]) is str:
+            bytes_value[i] = params[i].encode()
+
+
+    return functools.reduce(lambda x, y: x + y, bytes_value)
 
 
 def main(): 
