@@ -35,8 +35,11 @@ def ring_signature(siging_key, key_idx, M, y, G=SECP256k1.generator, hash_func=s
             y: (list) The list of public keys which over which the anonymous signature
                 will be compose.
 
-            G = (ecdsa.ellipticcurve.Point) Generator point for the elliptic curve.
-        
+            G: (ecdsa.ellipticcurve.Point) Base point for the elliptic curve.
+            
+            hash_func: (function) Cryptographic hash function that recieves an input
+                and outputs a digest.
+
         RETURNS
         -------
 
@@ -57,7 +60,7 @@ def ring_signature(siging_key, key_idx, M, y, G=SECP256k1.generator, hash_func=s
 
     # STEP 2
     u = randrange(SECP256k1.order)
-    c[(key_idx + 1) % n] = H1([y, Y, M, G * u, H * u])
+    c[(key_idx + 1) % n] = H1([y, Y, M, G * u, H * u], hash_func=hash_func)
 
     # STEP 3
     for i in [ i for i in range(key_idx + 1, n) ] + [i for i in range(key_idx)]:
@@ -71,7 +74,6 @@ def ring_signature(siging_key, key_idx, M, y, G=SECP256k1.generator, hash_func=s
 
     # STEP 4
     s[key_idx] = (u - siging_key * c[key_idx]) % SECP256k1.order
-    print(c)
     return (c[0], s, Y)
 
 
@@ -93,8 +95,10 @@ def verify_ring_signature(message, y, c_0, s, Y, G=SECP256k1.generator, hash_fun
 
                 Y = (int) Link of unique signer.
 
-            G = (ecdsa.ellipticcurve.Point) Generator point for the elliptic curve.
-
+            G: (ecdsa.ellipticcurve.Point) Base point for the elliptic curve.
+            
+            hash_func: (function) Cryptographic hash function that recieves an input
+                and outputs a digest.
 
         RETURNS
         -------
@@ -113,20 +117,21 @@ def verify_ring_signature(message, y, c_0, s, Y, G=SECP256k1.generator, hash_fun
         if i < n - 1:
             c[i + 1] = H1([y, Y, message, z_1, z_2], hash_func=hash_func)
         else:
-            # Did we correctly reconstruct ring?
             return c_0 == H1([y, Y, message, z_1, z_2], hash_func=hash_func)
 
     return False
 
 
 def map_to_curve(x):
-    """ Maps an integer to an elliptic curve.
+    """ 
+        Maps an integer to an elliptic curve.
     """
     return SECP256k1.generator * x
 
 
 def H1(msg, hash_func=sha3.keccak_256):
-    """ Return an integer representation of the hash of a message. The 
+    """ 
+        Return an integer representation of the hash of a message. The 
         message can be a list of messages that are concatenated with the
         concat() function.
 
@@ -141,16 +146,19 @@ def H1(msg, hash_func=sha3.keccak_256):
         -------
             Integer representation of hexadecimal digest from hash function.
     """
-    return int('0x'+ hash_func(concat(msg)).hexdigest(), 16) #% SECP256k1.order
+    return int('0x'+ hash_func(concat(msg)).hexdigest(), 16)
 
 
 def H2(msg, hash_func=sha3.keccak_256):
-    """ Hashes a message into an elliptic curve point.
+    """
+        Hashes a message into an elliptic curve point.
     
         PARAMS
         ------
             msg: (str or list) message(s) to be hashed.
-
+            
+            hash_func: (function) Cryptographic hash function that recieves an input
+                and outputs a digest.
         RETURNS
         -------
             ecdsa.ellipticcurve.Point to curve.  
@@ -159,7 +167,21 @@ def H2(msg, hash_func=sha3.keccak_256):
 
 
 def concat(params):
-    """ 
+    """
+        Concatenates a list of parameters into a bytes. If one
+        of the parameters is a list, calls itself recursively.
+
+        PARAMS
+        ------
+            params: (list) list of elements, must be of type:
+                - int
+                - list
+                - str
+                - ecdsa.ellipticcurve.Point
+
+        RETURNS
+        -------
+            concatenated bytes of all values.
     """
     n = len(params)
     bytes_value = [0] * n
