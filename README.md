@@ -4,16 +4,15 @@
 Minimalistic implementation of a [linkable spontaneously anonymous group (LSAG)
 signature scheme](https://eprint.iacr.org/2004/027.pdf) with python over elliptic curves.
 
+With this package you can perform a ring signature over a set of public key without revealing which corresponding private key to one of the public keys in the set generated the signature.
+
 This implementation serves as a proof of concept. DO NOT TRY TO USE THIS FOR ANY REAL USE CASE. THIS HAS NOT BEEN TESTED EXTERNALLY.
 
-TODO:
-    The scheme requires to hash into an elliptic curve. This has not yet been implemented. Currently the scheme only multiplies the hash of the string being
-    hashed by the EC generator.
 
-
-Sing and verify a message:
+Sign and verify a message:
 
 ```python
+
 from linkable_ring_signature import ring_signature, verify_ring_signature
 
 from ecdsa.util import randrange
