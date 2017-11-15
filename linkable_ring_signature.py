@@ -232,15 +232,42 @@ def concat(params):
 
 
 def stringify_point(p):
+    """
+        Represents an elliptic curve point as a string coordinate.
+
+        PARAMS
+        ------
+            p: ecdsa.ellipticcurve.Point - Point to represent as string.
+
+        RETURNS
+        -------
+            (str) Representation of a point (x, y) 
+    """
     return '{},{}'.format(p.x(), p.y())
 
 
 def stringify_point_js(p):
+    """
+        Represents an elliptic curve point as a string coordinate, the
+        string format is javascript so other javascript scripts can 
+        consume this.
+
+        PARAMS
+        ------
+            p: ecdsa.ellipticcurve.Point - Point to represent as string.
+
+        RETURNS
+        -------
+            (str) Javascript string representation of a point (x, y) 
+    """
     return 'new BigNumber("{}"), new BigNumber("{}")'.format(p.x(), p.y())
 
 
 def export_signature(y, message, signature, foler_name='./data', file_name='signature.txt'):
-    """
+    """ Exports a signature to a specific folder and filename provided.
+
+        The file contains the signature, the ring used to generate signature
+        and the message being signed.
     """
     if not os.path.exists(foler_name):
         os.makedirs(foler_name)
@@ -264,7 +291,9 @@ def export_signature(y, message, signature, foler_name='./data', file_name='sign
 
 
 def export_private_keys(s_keys, foler_name='./data', file_name='secrets.txt'):
-    """
+    """ Exports a set  of private keys to a file.
+
+        Each line in the file is one key.
     """
     if not os.path.exists(foler_name):
         os.makedirs(foler_name)
@@ -278,7 +307,7 @@ def export_private_keys(s_keys, foler_name='./data', file_name='secrets.txt'):
 
 
 def export_signature_javascript(y, message, signature, foler_name='./data', file_name='signature.js'):
-    """
+    """ Exports a signatrue in javascript format to a file and folder.
     """
     if not os.path.exists(foler_name):
         os.makedirs(foler_name)
@@ -310,7 +339,6 @@ def main():
     y = list(map(lambda xi: SECP256k1.generator * xi, x))
 
     message = "Every move we made was a kiss"
-    # message = 555
 
     i = 2
     signature = ring_signature(x[i], i, message, y)
