@@ -8,13 +8,16 @@
 #
 # Written in 2017 by Fernanddo Lobato Meeser and placed in the public domain.
 
+import os
 import hashlib
 import sha3
 import functools
 import ecdsa
 
 from ecdsa.util import randrange
+from ecdsa.ecdsa import curve_secp256k1
 from ecdsa.curves import SECP256k1
+from ecdsa import numbertheory
 
 def ring_signature(siging_key, key_idx, M, y, G=SECP256k1.generator, hash_func=sha3.keccak_256):
     """ 
@@ -122,11 +125,38 @@ def verify_ring_signature(message, y, c_0, s, Y, G=SECP256k1.generator, hash_fun
     return False
 
 
-def map_to_curve(x):
+def map_to_curve(x, P=curve_secp256k1.p()):
     """ 
         Maps an integer to an elliptic curve.
+        
+        Using the try and increment algorithm, not quite
+        as efficient as I would like, but c'est la vie.
+
+        PARAMS
+        ------
+            x: (int) number to be mapped into E.
+            
+            P: (ecdsa.curves.curve_secp256k1.p) Modulo for elliptic curve.
+
+        RETURNS
+        -------
+            (ecdsa.ellipticcurve.Point) Point in Curve
     """
-    return SECP256k1.generator * x
+    x -= 1
+    y = 0
+    found = False
+
+    while not found:
+        x += 1
+        f_x = (x * x * x + 7) % P
+        
+        try:
+            y = numbertheory.square_root_mod_prime(f_x, P)
+            found = True
+        except Exception as e:
+            pass
+    
+    return ecdsa.ellipticcurve.Point(curve_secp256k1, x, y)
 
 
 def H1(msg, hash_func=sha3.keccak_256):
@@ -201,6 +231,78 @@ def concat(params):
     return functools.reduce(lambda x, y: x + y, bytes_value)
 
 
+def stringify_point(p):
+    return '{},{}'.format(p.x(), p.y())
+
+
+def stringify_point_js(p):
+    return 'new BigNumber("{}"), new BigNumber("{}")'.format(p.x(), p.y())
+
+
+def export_signature(y, message, signature, foler_name='./data', file_name='signature.txt'):
+    """
+    """
+    if not os.path.exists(foler_name):
+        os.makedirs(foler_name)
+
+    arch = open(os.path.join(foler_name, file_name), 'w')
+    S = ''.join(map(lambda x: str(x) + ',', signature[1]))[:-1]
+    Y = stringify_point(signature[2])
+
+    dump = '{}\n'.format(signature[0])
+    dump += '{}\n'.format(S)
+    dump += '{}\n'.format(Y)
+
+    arch.write(dump)
+
+    pub_keys = ''.join(map(lambda yi: stringify_point(yi) + ';', y))[:-1]
+    data = '{}\n'.format(''.join([ '{},'.format(m) for m in message])[:-1])
+    data += '{}\n,'.format(pub_keys)[:-1]
+    
+    arch.write(data)
+    arch.close()
+
+
+def export_private_keys(s_keys, foler_name='./data', file_name='secrets.txt'):
+    """
+    """
+    if not os.path.exists(foler_name):
+        os.makedirs(foler_name)
+
+    arch = open(os.path.join(foler_name, file_name), 'w')
+    
+    for key in s_keys:
+        arch.write('{}\n'.format(key))
+
+    arch.close()
+
+
+def export_signature_javascript(y, message, signature, foler_name='./data', file_name='signature.js'):
+    """
+    """
+    if not os.path.exists(foler_name):
+        os.makedirs(foler_name)
+
+    arch = open(os.path.join(foler_name, file_name), 'w')
+
+    S = ''.join(map(lambda x: 'new BigNumber("' + str(x) + '"),', signature[1]))[:-1]
+    Y = stringify_point_js(signature[2])
+
+    dump = 'var c_0 = new BigNumber("{}");\n'.format(signature[0])
+    dump += 'var s = [{}];\n'.format(S)
+    dump += 'var Y = [{}];\n'.format(Y)
+
+    arch.write(dump)
+
+    pub_keys = ''.join(map(lambda yi: stringify_point_js(yi) + ',', y))[:-1]
+
+    data = 'var message = [{}];\n'.format(''.join([ 'new BigNumber("{}"),'.format(m) for m in message])[:-1])
+    data += 'var pub_keys = [{}];'.format(pub_keys)
+
+    arch.write(data + '\n')
+    arch.close()
+
+
 def main(): 
     number_participants = 10
 
@@ -208,6 +310,7 @@ def main():
     y = list(map(lambda xi: SECP256k1.generator * xi, x))
 
     message = "Every move we made was a kiss"
+    # message = 555
 
     i = 2
     signature = ring_signature(x[i], i, message, y)
