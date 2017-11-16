@@ -95,7 +95,7 @@ class Point(object):
       return self
     if self == INFINITY:
       return other
-    assert self.__curve == other.__curve
+    # assert self.__curve == other.__curve
     if self.__x == other.__x:
       if (self.__y + other.__y) % self.__curve.p() == 0:
         return INFINITY

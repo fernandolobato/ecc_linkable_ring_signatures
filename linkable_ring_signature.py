@@ -227,6 +227,8 @@ def concat(params):
         if type(params[i]) is str:
             bytes_value[i] = params[i].encode()
 
+        if bytes_value[i] == 0:
+            bytes_value[i] = params[i].x().to_bytes(32, 'big') + params[i].y().to_bytes(32, 'big')
 
     return functools.reduce(lambda x, y: x + y, bytes_value)
 
