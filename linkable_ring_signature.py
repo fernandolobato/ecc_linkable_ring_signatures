@@ -1,16 +1,15 @@
 #! /usr/bin/env python
 #
 # Provide an implementation of Linkable Spontaneus Anonymous Group Signature
-# over elliptic curve cryptography. 
+# over elliptic curve cryptography.
 #
 # Implementation of cryptographic scheme from: https://eprint.iacr.org/2004/027.pdf
-# 
+#
 #
 # Written in 2017 by Fernanddo Lobato Meeser and placed in the public domain.
 
 import os
 import hashlib
-import sha3
 import functools
 import ecdsa
 
@@ -19,8 +18,8 @@ from ecdsa.ecdsa import curve_secp256k1
 from ecdsa.curves import SECP256k1
 from ecdsa import numbertheory
 
-def ring_signature(siging_key, key_idx, M, y, G=SECP256k1.generator, hash_func=sha3.keccak_256):
-    """ 
+def ring_signature(siging_key, key_idx, M, y, G=SECP256k1.generator, hash_func=hashlib.sha3_256):
+    """
         Generates a ring signature for a message given a specific set of
         public keys and a signing key belonging to one of the public keys
         in the set.
@@ -39,7 +38,7 @@ def ring_signature(siging_key, key_idx, M, y, G=SECP256k1.generator, hash_func=s
                 will be compose.
 
             G: (ecdsa.ellipticcurve.Point) Base point for the elliptic curve.
-            
+
             hash_func: (function) Cryptographic hash function that recieves an input
                 and outputs a digest.
 
@@ -48,7 +47,7 @@ def ring_signature(siging_key, key_idx, M, y, G=SECP256k1.generator, hash_func=s
 
             Signature (c_0, s, Y) :
                 c_0: Initial value to reconstruct signature.
-                s = vector of randomly generated values with encrypted secret to 
+                s = vector of randomly generated values with encrypted secret to
                     reconstruct signature.
                 Y = Link for current signer.
 
@@ -56,7 +55,7 @@ def ring_signature(siging_key, key_idx, M, y, G=SECP256k1.generator, hash_func=s
     n = len(y)
     c = [0] * n
     s = [0] * n
-    
+
     # STEP 1
     H = H2(y, hash_func=hash_func)
     Y =  H * siging_key
@@ -67,9 +66,9 @@ def ring_signature(siging_key, key_idx, M, y, G=SECP256k1.generator, hash_func=s
 
     # STEP 3
     for i in [ i for i in range(key_idx + 1, n) ] + [i for i in range(key_idx)]:
-        
+
         s[i] = randrange(SECP256k1.order)
-        
+
         z_1 = (G * s[i]) + (y[i] * c[i])
         z_2 = (H * s[i]) + (Y * c[i])
 
@@ -80,15 +79,15 @@ def ring_signature(siging_key, key_idx, M, y, G=SECP256k1.generator, hash_func=s
     return (c[0], s, Y)
 
 
-def verify_ring_signature(message, y, c_0, s, Y, G=SECP256k1.generator, hash_func=sha3.keccak_256):
+def verify_ring_signature(message, y, c_0, s, Y, G=SECP256k1.generator, hash_func=hashlib.sha3_256):
     """
         Verifies if a valid signature was made by a key inside a set of keys.
-    
+
 
         PARAMS
         ------
             message: (str) message whos' signature is being verified.
-            
+
             y: (list) set of public keys with which the message was signed.
 
             Signature:
@@ -99,7 +98,7 @@ def verify_ring_signature(message, y, c_0, s, Y, G=SECP256k1.generator, hash_fun
                 Y = (int) Link of unique signer.
 
             G: (ecdsa.ellipticcurve.Point) Base point for the elliptic curve.
-            
+
             hash_func: (function) Cryptographic hash function that recieves an input
                 and outputs a digest.
 
@@ -126,16 +125,16 @@ def verify_ring_signature(message, y, c_0, s, Y, G=SECP256k1.generator, hash_fun
 
 
 def map_to_curve(x, P=curve_secp256k1.p()):
-    """ 
+    """
         Maps an integer to an elliptic curve.
-        
+
         Using the try and increment algorithm, not quite
         as efficient as I would like, but c'est la vie.
 
         PARAMS
         ------
             x: (int) number to be mapped into E.
-            
+
             P: (ecdsa.curves.curve_secp256k1.p) Modulo for elliptic curve.
 
         RETURNS
@@ -149,19 +148,19 @@ def map_to_curve(x, P=curve_secp256k1.p()):
     while not found:
         x += 1
         f_x = (x * x * x + 7) % P
-        
+
         try:
             y = numbertheory.square_root_mod_prime(f_x, P)
             found = True
         except Exception as e:
             pass
-    
+
     return ecdsa.ellipticcurve.Point(curve_secp256k1, x, y)
 
 
-def H1(msg, hash_func=sha3.keccak_256):
-    """ 
-        Return an integer representation of the hash of a message. The 
+def H1(msg, hash_func=hashlib.sha3_256):
+    """
+        Return an integer representation of the hash of a message. The
         message can be a list of messages that are concatenated with the
         concat() function.
 
@@ -179,19 +178,19 @@ def H1(msg, hash_func=sha3.keccak_256):
     return int('0x'+ hash_func(concat(msg)).hexdigest(), 16)
 
 
-def H2(msg, hash_func=sha3.keccak_256):
+def H2(msg, hash_func=hashlib.sha3_256):
     """
         Hashes a message into an elliptic curve point.
-    
+
         PARAMS
         ------
             msg: (str or list) message(s) to be hashed.
-            
+
             hash_func: (function) Cryptographic hash function that recieves an input
                 and outputs a digest.
         RETURNS
         -------
-            ecdsa.ellipticcurve.Point to curve.  
+            ecdsa.ellipticcurve.Point to curve.
     """
     return map_to_curve(H1(msg, hash_func=hash_func))
 
@@ -217,7 +216,7 @@ def concat(params):
     bytes_value = [0] * n
 
     for i in range(n):
-        
+
         if type(params[i]) is int:
             bytes_value[i] = params[i].to_bytes(32, 'big')
         if type(params[i]) is list:
@@ -243,7 +242,7 @@ def stringify_point(p):
 
         RETURNS
         -------
-            (str) Representation of a point (x, y) 
+            (str) Representation of a point (x, y)
     """
     return '{},{}'.format(p.x(), p.y())
 
@@ -251,7 +250,7 @@ def stringify_point(p):
 def stringify_point_js(p):
     """
         Represents an elliptic curve point as a string coordinate, the
-        string format is javascript so other javascript scripts can 
+        string format is javascript so other javascript scripts can
         consume this.
 
         PARAMS
@@ -260,7 +259,7 @@ def stringify_point_js(p):
 
         RETURNS
         -------
-            (str) Javascript string representation of a point (x, y) 
+            (str) Javascript string representation of a point (x, y)
     """
     return 'new BigNumber("{}"), new BigNumber("{}")'.format(p.x(), p.y())
 
@@ -287,7 +286,7 @@ def export_signature(y, message, signature, foler_name='./data', file_name='sign
     pub_keys = ''.join(map(lambda yi: stringify_point(yi) + ';', y))[:-1]
     data = '{}\n'.format(''.join([ '{},'.format(m) for m in message])[:-1])
     data += '{}\n,'.format(pub_keys)[:-1]
-    
+
     arch.write(data)
     arch.close()
 
@@ -301,7 +300,7 @@ def export_private_keys(s_keys, foler_name='./data', file_name='secrets.txt'):
         os.makedirs(foler_name)
 
     arch = open(os.path.join(foler_name, file_name), 'w')
-    
+
     for key in s_keys:
         arch.write('{}\n'.format(key))
 
@@ -334,7 +333,7 @@ def export_signature_javascript(y, message, signature, foler_name='./data', file
     arch.close()
 
 
-def main(): 
+def main():
     number_participants = 10
 
     x = [ randrange(SECP256k1.order) for i in range(number_participants)]
